@@ -1,7 +1,6 @@
 import dash
 import dash_core_components as dcc
 from datetime import datetime, timedelta
-import dash_table_experiments as dt
 import dash_html_components as html
 import yaml
 import pandas as pd

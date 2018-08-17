@@ -1,27 +1,25 @@
 import csv
-from collections import OrderedDict
-from operator import itemgetter
+import re
+import time
+
+import requests
+import urllib3
+import yaml
+from bs4 import BeautifulSoup as BS
+from colorama import Back, Fore, Style, init
 
 import arrow
-from bs4 import BeautifulSoup as BS
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table_experiments as dt
-import pandas as pd
-import time
 import plotly.graph_objs as go
 import plotly.plotly as py
-import requests
-import urllib3
-http = urllib3.PoolManager()
-import re
-import yaml
-from colorama import Fore, Back, Style
-from iexfinance import Stock, get_historical_data
-from colorama import init
-init(autoreset=True)
 from app import app
+from iexfinance import Stock, get_historical_data
+
+http = urllib3.PoolManager()
+init(autoreset=True)
 
 requests.packages.urllib3.disable_warnings() 
 
