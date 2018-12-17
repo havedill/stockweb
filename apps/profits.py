@@ -52,19 +52,48 @@ def profit_graph(unused, index):
     df = pd.read_csv(csvfile)
     data = []
     filtereddata = df[(df.Date > daysback.format('YYYY-MM-DD HH:mm:ss'))]
-    data.append(go.Line(x=list(filtereddata.Date),
+    linecolor = 'rgb(255,0,0)'
+    #print(list(filtereddata.TodaysProfit)[-1])
+    if list(filtereddata.TodaysProfit)[-1] > 0:
+        linecolor = 'rgb(34,139,34)'
+    totalprofitline = go.Line(x=list(filtereddata.Date),
                         y=list(filtereddata.Profit),
-                        text=filtereddata.Profit               
-                        ))
+                        text=filtereddata.Profit,
+                        name="Total Profits")
+                        
     if days > 30:
         graphtype = "date"
     else:
         graphtype = "category"
-    return {
+                            
+    if days == 0:
+        todaysprofitline = go.Line(x=list(filtereddata.Date),
+                            y=list(filtereddata.TodaysProfit),
+                            name="Todays Profits",
+                            yaxis="y2",
+                            line=dict(
+                                color = (linecolor)
+                            )
+                            )
+        data = [totalprofitline, todaysprofitline] 
+        output = {
+        'data': data,
+        'layout' : go.Layout(
+            yaxis={'title': 'Profits'},
+            yaxis2={'title': 'Todays Profits',
+                    'side': 'right',
+                    'overlaying':'y'},
+            xaxis={'type':graphtype,
+                'tickangle': 45}
+        )}
+    else:
+        data = [totalprofitline] 
+        output = {
         'data': data,
         'layout' : go.Layout(
             yaxis={'title': 'Profits'},
             xaxis={'type':graphtype,
                 'tickangle': 45}
-        )
-    }
+        )}
+  
+    return output

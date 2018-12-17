@@ -1,0 +1,19 @@
+positions: {  
+  "GWPH":{
+    "shares" : 100,
+    "basis" : 110
+  },
+  "NTDOY":{
+    "shares" : 100,
+    "basis" : 110
+  },  
+  "PANW":{
+    "shares" : 100,
+    "basis" : 110
+  },  
+  "SPLK":{
+    "shares" : 100,
+    "basis" : 110
+  }
+}
+

@@ -1,32 +1,36 @@
 import csv
-import re
-import time
-
-import requests
-import urllib3
-import yaml
-from bs4 import BeautifulSoup as BS
-from colorama import Back, Fore, Style, init
+from collections import OrderedDict
+from operator import itemgetter
 
 import arrow
+from bs4 import BeautifulSoup as BS
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table_experiments as dt
+import pandas as pd
+import time
 import plotly.graph_objs as go
 import plotly.plotly as py
-from app import app
-from iexfinance import Stock, get_historical_data
-
+import requests
+import urllib3
 http = urllib3.PoolManager()
+import re
+import pickle
+import random
+import yaml
+from colorama import Fore, Back, Style
+from iexfinance import Stock, get_historical_data
+from colorama import init
 init(autoreset=True)
+from app import app
 
 requests.packages.urllib3.disable_warnings() 
 
 csvfile = 'historical.csv'
 #load the figure as a global variable so after hours we can keep it up
 
-fig = {}
+
 generateclose = 0
 closedic = {}
 
@@ -35,7 +39,7 @@ with open("config.yaml", 'r') as configfile:
 symbols = []
 for k,v in cfg['positions'].items():
     symbols.append(k)
-
+symbols = sorted(symbols)
 layout = html.Div([
      dcc.Graph(id='live-table')
     ])
@@ -73,7 +77,7 @@ def get_close(sym):
 def pull_website(sym):
     url = f"https://www.zacks.com/stock/quote/{sym}?q={sym}"
     response = http.request('GET', url)
-    soup = BS(response.data)
+    soup = BS(response.data, "lxml")
     return soup
 
 def alternative_close(sym):
@@ -115,37 +119,43 @@ def calculate_todaysgain(symbol, currentprice, closeprice):
     [dash.dependencies.Input('live-interval', 'n_intervals')]
     )
 def generate_table(whatever):
+    fig = {}
     pricedic = []
     profitdic = []
     percentdic = []
     gaindic = []
     total = 0
-    global fig
     global generateclose
 
     now = arrow.now()
-    marketopen = now.replace(hour=8, minute=25, second=00)
-    marketclose = now.replace(hour=15, minute=5, second=00)
+    marketopen = now.replace(hour=8, minute=29, second=00)
+    marketclose = now.replace(hour=15, minute=1, second=00)
     if now < marketclose and now > marketopen and now.weekday() != 5 and now.weekday() !=6:
-        if  generateclose == 0:
+        if random.randint(1, 20) == 10 or generateclose == 0:
+            print(Fore.LIGHTYELLOW_EX + '-----------------Refreshing Close Prices-----------------')
+            generateclose = 1
             global closedic
             closedic = {}
-            generateclose = 1
             for symbol in symbols:
                 closeprice = get_close(symbol)
                 closedic[symbol] = closeprice
                 
         start = time.time()
         for symbol in symbols:
-            price = round(get_price(symbol), 2)
-            pricedic.append(price)
-            profit, gain = calculate_profit(symbol, price, closedic[symbol])
-            profit =  round(profit, 2)
-            profitdic.append(profit)
-            percent = calculate_todaysgain(symbol, price, closedic[symbol])
-            percentdic.append(percent)
-            gaindic.append(gain)
-
+            try:
+                price = round(get_price(symbol), 2)
+                pricedic.append(price)
+                profit, gain = calculate_profit(symbol, price, closedic[symbol])
+                profit =  round(profit, 2)
+                profitdic.append(profit)
+                percent = calculate_todaysgain(symbol, price, closedic[symbol])
+                percentdic.append(percent)
+                gaindic.append(gain)
+            except:
+                print(Fore.MAGENTA + f'Error processing pricing for {symbol}. Displaying stale results.')
+                with open('fig.dump','rb',) as pickle_file:
+                    fig = pickle.load(pickle_file)
+                return fig
             pricecolor='LIGHTRED_EX'
             perccolor='LIGHTRED_EX'
             gaincolor='LIGHTRED_EX'
@@ -158,7 +168,7 @@ def generate_table(whatever):
             pricemeth = getattr(Fore, pricecolor)
             percmeth = getattr(Fore, perccolor)
             profitmeth = getattr(Fore, gaincolor)
-            print(Fore.WHITE + str(symbol) + ' Price=' + pricemeth + str(price)  + Style.RESET_ALL + ' PercentToday=' + percmeth + str(percent) + Style.RESET_ALL + ' TodaysProfit=' + profitmeth + str(gain))
+            print(Fore.WHITE + str(symbol) + ' Price=' + pricemeth + str(price)  + Style.RESET_ALL + f' Close={closedic[symbol]}' + ' PercentToday=' + percmeth + str(percent) + Style.RESET_ALL + ' TodaysProfit=' + profitmeth + str(gain))
             total += profit
         end = time.time()
         #print(f'Total calculations took {end-start} seconds')
@@ -170,7 +180,8 @@ def generate_table(whatever):
         pricedic.append('')
         profitdic.append(total)
         percentdic.append(sum(p for p in percentdic))
-        gaindic.append(sum(g for g in gaindic))
+        tgain = sum(g for g in gaindic)
+        gaindic.append(tgain)
         table_trace=dict(type = 'table',
             columnwidth= [5]+[5],
             columnorder=[0, 1, 2, 3, 4],
@@ -185,7 +196,7 @@ def generate_table(whatever):
                 line = dict(color='#506784'),
                 align = ['left']*5,
                 font = dict(color=['rgb(40,40,40)']*2, size=10),
-                format = [None, ",.2f"],
+                format = [None, ",.2f", ",.3f", ",.2f", ",.2f"],
                 prefix = ['','$','','$','$'],
                 suffix = ['','','%', '', ''],
                 height = 20,
@@ -195,7 +206,7 @@ def generate_table(whatever):
                             )
                     )
                 )
-        stored_data = [arrow.now().format('YYYY-MM-DD HH:mm:ss'), total]
+        stored_data = [arrow.now().format('YYYY-MM-DD HH:mm:ss'), total, tgain]
 
         with open('historical.csv', 'a', newline='') as csvFile:
             writer = csv.writer(csvFile)
@@ -205,8 +216,13 @@ def generate_table(whatever):
         layout = dict(width=900, height=500, autosize=False) 
         fig = dict(data=[table_trace], layout=layout)
         end = time.time()
+        #dump the fig to file for loading later
+        with open('fig.dump', 'wb') as pickle_file:
+            pickle.dump(fig, pickle_file)
         #print(f'Table generation took {end-start} seconds')
     else:
+        with open('fig.dump','rb',) as pickle_file:
+            fig = pickle.load(pickle_file)
         print(f'Markets are sleeping. So we are too :)')
         generateclose = 0
     return fig
